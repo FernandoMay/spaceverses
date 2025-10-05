@@ -317,7 +317,7 @@ export default function UniverseGenerator() {
 
   useEffect(() => {
     generateUniverse()
-  }, [generateUniverse])
+  }, []) // Only run once on mount
 
   const handleCanvasClick = useCallback((e: React.MouseEvent) => {
     if (!galaxy || !canvasRef.current) return

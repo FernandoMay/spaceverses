@@ -66,6 +66,8 @@ export default function Space3DEnvironment() {
   const containerRef = useRef<HTMLDivElement>(null)
   const animationRef = useRef<number>()
   const starsRef = useRef<Array<{id: number, x: number, y: number, size: number, opacity: number}>>([])
+  const mouseMoveRef = useRef<((e: MouseEvent) => void) | null>(null)
+  const mouseUpRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
     // Initialize space objects
@@ -143,15 +145,15 @@ export default function Space3DEnvironment() {
     ]
     setObjects(initialObjects)
 
-    // Initialize stars
+    // Initialize stars - reduced count for better performance
     const stars = []
-    for (let i = 0; i < 100; i++) {
+    for (let i = 0; i < 50; i++) { // Reduced from 100 to 50
       stars.push({
         id: i,
         x: Math.random() * 100,
         y: Math.random() * 100,
-        size: Math.random() * 2 + 1,
-        opacity: Math.random() * 0.7 + 0.3
+        size: Math.random() * 1.5 + 0.5, // Reduced size range
+        opacity: Math.random() * 0.5 + 0.3 // Reduced opacity range
       })
     }
     starsRef.current = stars
@@ -162,34 +164,49 @@ export default function Space3DEnvironment() {
         cancelAnimationFrame(animationRef.current)
       }
       // Clean up any remaining event listeners
-      document.removeEventListener('mousemove', () => {})
-      document.removeEventListener('mouseup', () => {})
+      if (mouseMoveRef.current) {
+        document.removeEventListener('mousemove', mouseMoveRef.current)
+        mouseMoveRef.current = null
+      }
+      if (mouseUpRef.current) {
+        document.removeEventListener('mouseup', mouseUpRef.current)
+        mouseUpRef.current = null
+      }
     }
   }, [])
 
   useEffect(() => {
     if (isPlaying) {
       let animationFrameId: number
+      let lastTime = 0
+      const targetFPS = 30 // Limit to 30 FPS for better performance
+      const frameInterval = 1000 / targetFPS
       
-      const animate = () => {
-        setObjects(prev => prev.map(obj => {
-          let newObj = { ...obj }
-          
-          // Update rotation
-          newObj.rotation += newObj.rotationSpeed
-          
-          // Update orbital position
-          if (obj.orbitRadius > 0) {
-            newObj.orbitAngle += obj.orbitSpeed
-            const parent = prev.find(o => o.id === (obj.type === "satellite" || obj.type === "station" ? "earth" : "sun"))
-            if (parent) {
-              newObj.x = parent.x + Math.cos(newObj.orbitAngle * Math.PI / 180) * obj.orbitRadius
-              newObj.y = parent.y + Math.sin(newObj.orbitAngle * Math.PI / 180) * obj.orbitRadius
+      const animate = (currentTime: number) => {
+        if (!lastTime) lastTime = currentTime
+        const deltaTime = currentTime - lastTime
+        
+        if (deltaTime >= frameInterval) {
+          setObjects(prev => prev.map(obj => {
+            let newObj = { ...obj }
+            
+            // Update rotation
+            newObj.rotation += newObj.rotationSpeed * (deltaTime / 16.67) // Normalize to 60fps
+            
+            // Update orbital position
+            if (obj.orbitRadius > 0) {
+              newObj.orbitAngle += obj.orbitSpeed * (deltaTime / 16.67)
+              const parent = prev.find(o => o.id === (obj.type === "satellite" || obj.type === "station" ? "earth" : "sun"))
+              if (parent) {
+                newObj.x = parent.x + Math.cos(newObj.orbitAngle * Math.PI / 180) * obj.orbitRadius
+                newObj.y = parent.y + Math.sin(newObj.orbitAngle * Math.PI / 180) * obj.orbitRadius
+              }
             }
-          }
-          
-          return newObj
-        }))
+            
+            return newObj
+          }))
+          lastTime = currentTime
+        }
         
         animationFrameId = requestAnimationFrame(animate)
       }
@@ -255,21 +272,22 @@ export default function Space3DEnvironment() {
     }
 
     const handleMouseUp = () => {
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleMouseUp)
+      if (mouseMoveRef.current) {
+        document.removeEventListener('mousemove', mouseMoveRef.current)
+        mouseMoveRef.current = null
+      }
+      if (mouseUpRef.current) {
+        document.removeEventListener('mouseup', mouseUpRef.current)
+        mouseUpRef.current = null
+      }
     }
+
+    // Store references to cleanup functions
+    mouseMoveRef.current = handleMouseMove
+    mouseUpRef.current = handleMouseUp
 
     document.addEventListener('mousemove', handleMouseMove)
     document.addEventListener('mouseup', handleMouseUp)
-    
-    // Store cleanup function
-    const cleanup = () => {
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleMouseUp)
-    }
-    
-    // Return cleanup function for manual cleanup if needed
-    return cleanup
   }
 
   const handleWheel = (e: React.WheelEvent) => {

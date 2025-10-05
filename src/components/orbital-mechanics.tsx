@@ -199,11 +199,13 @@ export default function OrbitalMechanics() {
   useEffect(() => {
     if (isSimulating) {
       simulationRef.current = setInterval(() => {
-        setSimulationTime(prev => prev + 1)
-        
-        // Generate orbital data for visualization
-        const newOrbitalData = satellites.map(sat => generateOrbitalData(sat, simulationTime))
-        setOrbitalData(newOrbitalData)
+        setSimulationTime(prev => {
+          const newTime = prev + 1
+          // Generate orbital data for visualization
+          const newOrbitalData = satellites.map(sat => generateOrbitalData(sat, newTime))
+          setOrbitalData(newOrbitalData)
+          return newTime
+        })
       }, 100)
     } else {
       if (simulationRef.current) {
@@ -216,7 +218,7 @@ export default function OrbitalMechanics() {
         clearInterval(simulationRef.current)
       }
     }
-  }, [isSimulating, simulationTime, satellites])
+  }, [isSimulating, satellites]) // Removed simulationTime from dependencies
 
   const handleOptimizeRoutes = async () => {
     setIsOptimizing(true)
