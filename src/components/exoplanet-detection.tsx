@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -83,9 +83,10 @@ const generateMockExoplanetData = (): ExoplanetData[] => {
 
 const generateLightCurveData = () => {
   const data = []
-  for (let i = 0; i < 100; i++) {
+  // Reduced from 100 to 50 points for better performance
+  for (let i = 0; i < 50; i++) {
     const baseValue = 1.0
-    const transitDepth = i > 40 && i < 45 ? 0.01 : 0
+    const transitDepth = i > 20 && i < 25 ? 0.01 : 0 // Reduced transit range
     const noise = (Math.random() - 0.5) * 0.005
     data.push({
       time: i,
@@ -97,7 +98,8 @@ const generateLightCurveData = () => {
 
 const generateScatterData = () => {
   const data = []
-  for (let i = 0; i < 50; i++) {
+  // Reduced from 50 to 25 points for better performance
+  for (let i = 0; i < 25; i++) {
     data.push({
       orbitalPeriod: Math.random() * 300,
       planetaryRadius: Math.random() * 4,
@@ -122,32 +124,52 @@ export default function ExoplanetDetection() {
 
   const [lightCurveData, setLightCurveData] = useState(generateLightCurveData())
   const [scatterData, setScatterData] = useState(generateScatterData())
+  
+  const debounceTimeout = useRef<NodeJS.Timeout>()
 
-  const handleAnalyze = async () => {
+  const updateChartData = useCallback(() => {
+    if (debounceTimeout.current) {
+      clearTimeout(debounceTimeout.current)
+    }
+    
+    debounceTimeout.current = setTimeout(() => {
+      setLightCurveData(generateLightCurveData())
+      setScatterData(generateScatterData())
+    }, 500) // 500ms debounce delay
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (debounceTimeout.current) {
+        clearTimeout(debounceTimeout.current)
+      }
+    }
+  }, [])
+
+  const handleAnalyze = useCallback(async () => {
     setIsAnalyzing(true)
     
-    // Simulate AI analysis with z-ai-web-dev-sdk
     try {
-      // In a real implementation, this would use the ZAI SDK
-      // For now, we'll simulate the analysis
-      await new Promise(resolve => setTimeout(resolve, 3000))
+      // Reduced simulation time from 3000ms to 1500ms
+      await new Promise(resolve => setTimeout(resolve, 1500))
       
       const mockResult: AnalysisResult = {
         predictions: generateMockExoplanetData(),
         accuracy: 94.2,
-        processingTime: 2.8,
+        processingTime: 1.5, // Reduced processing time
         modelVersion: "ExoAI-v2.1"
       }
       
       setAnalysisResult(mockResult)
+      updateChartData() // Update charts with debouncing
     } catch (error) {
       console.error("Analysis failed:", error)
     } finally {
       setIsAnalyzing(false)
     }
-  }
+  }, [updateChartData])
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (file) {
       const reader = new FileReader()
@@ -156,16 +178,16 @@ export default function ExoplanetDetection() {
       }
       reader.readAsText(file)
     }
-  }
+  }, [])
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = useCallback((status: string) => {
     switch (status) {
       case "confirmed": return "bg-green-600"
       case "candidate": return "bg-yellow-600"
       case "false_positive": return "bg-red-600"
       default: return "bg-gray-600"
     }
-  }
+  }, [])
 
   return (
     <div className="space-y-6">

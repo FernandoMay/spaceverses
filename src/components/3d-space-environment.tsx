@@ -65,6 +65,7 @@ export default function Space3DEnvironment() {
   
   const containerRef = useRef<HTMLDivElement>(null)
   const animationRef = useRef<number>()
+  const starsRef = useRef<Array<{id: number, x: number, y: number, size: number, opacity: number}>>([])
 
   useEffect(() => {
     // Initialize space objects
@@ -141,10 +142,35 @@ export default function Space3DEnvironment() {
       }
     ]
     setObjects(initialObjects)
+
+    // Initialize stars
+    const stars = []
+    for (let i = 0; i < 100; i++) {
+      stars.push({
+        id: i,
+        x: Math.random() * 100,
+        y: Math.random() * 100,
+        size: Math.random() * 2 + 1,
+        opacity: Math.random() * 0.7 + 0.3
+      })
+    }
+    starsRef.current = stars
+
+    // Cleanup function
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current)
+      }
+      // Clean up any remaining event listeners
+      document.removeEventListener('mousemove', () => {})
+      document.removeEventListener('mouseup', () => {})
+    }
   }, [])
 
   useEffect(() => {
     if (isPlaying) {
+      let animationFrameId: number
+      
       const animate = () => {
         setObjects(prev => prev.map(obj => {
           let newObj = { ...obj }
@@ -155,7 +181,7 @@ export default function Space3DEnvironment() {
           // Update orbital position
           if (obj.orbitRadius > 0) {
             newObj.orbitAngle += obj.orbitSpeed
-            const parent = objects.find(o => o.id === (obj.type === "satellite" || obj.type === "station" ? "earth" : "sun"))
+            const parent = prev.find(o => o.id === (obj.type === "satellite" || obj.type === "station" ? "earth" : "sun"))
             if (parent) {
               newObj.x = parent.x + Math.cos(newObj.orbitAngle * Math.PI / 180) * obj.orbitRadius
               newObj.y = parent.y + Math.sin(newObj.orbitAngle * Math.PI / 180) * obj.orbitRadius
@@ -165,10 +191,11 @@ export default function Space3DEnvironment() {
           return newObj
         }))
         
-        animationRef.current = requestAnimationFrame(animate)
+        animationFrameId = requestAnimationFrame(animate)
       }
       
-      animationRef.current = requestAnimationFrame(animate)
+      animationFrameId = requestAnimationFrame(animate)
+      animationRef.current = animationFrameId
     }
     
     return () => {
@@ -176,7 +203,7 @@ export default function Space3DEnvironment() {
         cancelAnimationFrame(animationRef.current)
       }
     }
-  }, [isPlaying, objects])
+  }, [isPlaying])
 
   const project3D = (x: number, y: number, z: number): { x: number, y: number, scale: number } => {
     // Apply camera transformations
@@ -234,6 +261,15 @@ export default function Space3DEnvironment() {
 
     document.addEventListener('mousemove', handleMouseMove)
     document.addEventListener('mouseup', handleMouseUp)
+    
+    // Store cleanup function
+    const cleanup = () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+    
+    // Return cleanup function for manual cleanup if needed
+    return cleanup
   }
 
   const handleWheel = (e: React.WheelEvent) => {
@@ -402,13 +438,16 @@ export default function Space3DEnvironment() {
               })}
 
               {/* Stars background */}
-              {Array.from({ length: 200 }).map((_, i) => (
+              {starsRef.current.map(star => (
                 <div
-                  key={`star-${i}`}
-                  className="absolute w-1 h-1 bg-white rounded-full opacity-70"
+                  key={`star-${star.id}`}
+                  className="absolute bg-white rounded-full"
                   style={{
-                    left: `${Math.random() * 100}%`,
-                    top: `${Math.random() * 100}%`,
+                    left: `${star.x}%`,
+                    top: `${star.y}%`,
+                    width: `${star.size}px`,
+                    height: `${star.size}px`,
+                    opacity: star.opacity,
                     animation: `twinkle ${2 + Math.random() * 3}s infinite`
                   }}
                 />

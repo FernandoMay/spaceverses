@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback, memo } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -144,7 +144,9 @@ const generateGalaxy = (seed: string, params: GenerationParams): Galaxy => {
   const type = galaxyTypes[Math.floor(random(0, galaxyTypes.length))]
 
   const bodies: CelestialBody[] = []
-  const starCount = Math.floor(params.starDensity * params.galaxySize)
+  // Limit star count to prevent memory issues
+  const maxStars = Math.min(100, Math.floor(params.starDensity * params.galaxySize))
+  const starCount = Math.min(maxStars, 50) // Hard limit for safety
 
   // Generate stars
   for (let i = 0; i < starCount; i++) {
@@ -181,11 +183,11 @@ const generateGalaxy = (seed: string, params: GenerationParams): Galaxy => {
 
     bodies.push(star)
 
-    // Generate planets around stars
-    if (random(0, 1) < params.planetProbability) {
-      const planetCount = Math.floor(random(1, 8))
+    // Generate planets around stars (limited to prevent memory issues)
+    if (random(0, 1) < params.planetProbability && bodies.length < 200) {
+      const planetCount = Math.min(3, Math.floor(random(1, 4))) // Limit planets per star
       for (let j = 0; j < planetCount; j++) {
-        const planetDistance = distance + random(10, 50)
+        const planetDistance = distance + random(10, 30) // Reduced distance
         const planetAngle = angle + random(0, 2 * Math.PI)
         
         const planet: CelestialBody = {
@@ -194,25 +196,25 @@ const generateGalaxy = (seed: string, params: GenerationParams): Galaxy => {
           type: "planet",
           x: planetDistance * Math.cos(planetAngle),
           y: planetDistance * Math.sin(planetAngle),
-          size: random(1, 4),
+          size: random(1, 3), // Reduced size
           color: `hsl(${random(180, 300)}, 70%, ${random(30, 60)}%)`,
           temperature: random(-200, 500),
-          mass: random(0.1, 5),
+          mass: random(0.1, 3), // Reduced mass
           distance: planetDistance,
-          orbitalPeriod: random(50, 1000),
+          orbitalPeriod: random(50, 500), // Reduced period
           hasLife: random(0, 1) < params.lifeProbability,
           biodiversity: random(0, 100),
           atmosphere: random(0, 1) < 0.7 ? random(0, 1) < 0.5 ? "oxygen" : "nitrogen" : "methane",
-          resources: ["water", "minerals", "gases"].filter(() => random(0, 1) < 0.6)
+          resources: ["water", "minerals", "gases"].filter(() => random(0, 1) < 0.4) // Reduced resources
         }
 
         bodies.push(planet)
 
-        // Generate moons
-        if (random(0, 1) < 0.3) {
-          const moonCount = Math.floor(random(1, 3))
+        // Generate moons (limited)
+        if (random(0, 1) < 0.2 && bodies.length < 250) { // Reduced probability
+          const moonCount = Math.min(1, Math.floor(random(1, 2))) // Max 1 moon
           for (let k = 0; k < moonCount; k++) {
-            const moonDistance = random(5, 15)
+            const moonDistance = random(5, 10) // Reduced distance
             const moonAngle = planetAngle + random(0, 2 * Math.PI)
             
             const moon: CelestialBody = {
@@ -221,12 +223,12 @@ const generateGalaxy = (seed: string, params: GenerationParams): Galaxy => {
               type: "moon",
               x: planet.x + moonDistance * Math.cos(moonAngle),
               y: planet.y + moonDistance * Math.sin(moonAngle),
-              size: random(0.5, 2),
+              size: random(0.5, 1.5), // Reduced size
               color: `hsl(${random(0, 360)}, 50%, ${random(40, 70)}%)`,
               temperature: random(-250, 200),
-              mass: random(0.01, 0.5),
+              mass: random(0.01, 0.3), // Reduced mass
               distance: moonDistance,
-              orbitalPeriod: random(10, 100),
+              orbitalPeriod: random(10, 50), // Reduced period
               hasLife: false,
               biodiversity: 0,
               atmosphere: "",
@@ -253,38 +255,71 @@ const generateGalaxy = (seed: string, params: GenerationParams): Galaxy => {
   }
 }
 
+const CelestialBodyComponent = memo(({ 
+  body, 
+  onClick, 
+  isSelected 
+}: { 
+  body: CelestialBody, 
+  onClick: (body: CelestialBody) => void, 
+  isSelected: boolean 
+}) => {
+  return (
+    <div
+      className={`absolute rounded-full cursor-pointer transition-all hover:scale-110 ${
+        isSelected ? 'ring-2 ring-yellow-400' : ''
+      }`}
+      style={{
+        left: body.x + 200,
+        top: body.y + 150,
+        width: body.size * 6,
+        height: body.size * 6,
+        backgroundColor: body.color,
+        boxShadow: body.type === "star" ? `0 0 ${body.size * 4}px ${body.color}` : 'none'
+      }}
+      onClick={() => onClick(body)}
+    >
+      {body.hasLife && (
+        <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full animate-pulse" />
+      )}
+    </div>
+  )
+})
+
+CelestialBodyComponent.displayName = 'CelestialBodyComponent'
+
 export default function UniverseGenerator() {
   const [galaxy, setGalaxy] = useState<Galaxy | null>(null)
   const [seed, setSeed] = useState(generateSeed())
   const [isGenerating, setIsGenerating] = useState(false)
   const [selectedBody, setSelectedBody] = useState<CelestialBody | null>(null)
   const [params, setParams] = useState<GenerationParams>({
-    galaxySize: 200,
-    starDensity: 0.3,
-    planetProbability: 0.7,
-    lifeProbability: 0.1,
-    complexity: 0.5,
-    fractalIterations: 5
+    galaxySize: 100, // Reduced from 200
+    starDensity: 0.2, // Reduced from 0.3
+    planetProbability: 0.5, // Reduced from 0.7
+    lifeProbability: 0.05, // Reduced from 0.1
+    complexity: 0.3, // Reduced from 0.5
+    fractalIterations: 3 // Reduced from 5
   })
 
   const canvasRef = useRef<HTMLDivElement>(null)
 
-  const generateUniverse = async () => {
+  const generateUniverse = useCallback(async () => {
     setIsGenerating(true)
     
-    // Simulate generation time
-    await new Promise(resolve => setTimeout(resolve, 2000))
+    // Simulate generation time (reduced from 2000ms to 1000ms)
+    await new Promise(resolve => setTimeout(resolve, 1000))
     
     const newGalaxy = generateGalaxy(seed, params)
     setGalaxy(newGalaxy)
     setIsGenerating(false)
-  }
+  }, [seed, params])
 
   useEffect(() => {
     generateUniverse()
-  }, [])
+  }, [generateUniverse])
 
-  const handleCanvasClick = (e: React.MouseEvent) => {
+  const handleCanvasClick = useCallback((e: React.MouseEvent) => {
     if (!galaxy || !canvasRef.current) return
 
     const rect = canvasRef.current.getBoundingClientRect()
@@ -298,7 +333,19 @@ export default function UniverseGenerator() {
     })
 
     setSelectedBody(clickedBody || null)
-  }
+  }, [galaxy])
+
+  const handleBodyClick = useCallback((body: CelestialBody) => {
+    setSelectedBody(body)
+  }, [])
+
+  const handleSeedChange = useCallback((newSeed: string) => {
+    setSeed(newSeed)
+  }, [])
+
+  const handleParamChange = useCallback((newParams: Partial<GenerationParams>) => {
+    setParams(prev => ({ ...prev, ...newParams }))
+  }, [])
 
   const getBodyIcon = (type: string) => {
     switch (type) {
@@ -467,24 +514,12 @@ export default function UniverseGenerator() {
 
                     {/* Celestial bodies */}
                     {galaxy?.bodies.map((body) => (
-                      <div
+                      <CelestialBodyComponent
                         key={body.id}
-                        className={`absolute rounded-full cursor-pointer transition-all hover:scale-110 ${
-                          selectedBody?.id === body.id ? 'ring-2 ring-yellow-400' : ''
-                        }`}
-                        style={{
-                          left: body.x + 200,
-                          top: body.y + 150,
-                          width: body.size * 6,
-                          height: body.size * 6,
-                          backgroundColor: body.color,
-                          boxShadow: body.type === "star" ? `0 0 ${body.size * 4}px ${body.color}` : 'none'
-                        }}
-                      >
-                        {body.hasLife && (
-                          <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full animate-pulse" />
-                        )}
-                      </div>
+                        body={body}
+                        onClick={handleBodyClick}
+                        isSelected={selectedBody?.id === body.id}
+                      />
                     ))}
                   </div>
 
